@@ -13,10 +13,12 @@ namespace TelnetLib
             WONT = 252,
             DO = 253,
             DONT = 254,
+			//InterpretAsCommand
             IAC = 255
         }
         public enum Options
         {
+			//SuppressGoAhead
             SGA = 3
         }
     }
