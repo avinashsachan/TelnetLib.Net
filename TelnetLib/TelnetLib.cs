@@ -12,18 +12,7 @@ using System.IO;
 
 namespace TelnetLib
 {
-    enum Verbs
-    {
-        WILL = 251,
-        WONT = 252,
-        DO = 253,
-        DONT = 254,
-        IAC = 255
-    }
-    enum Options
-    {
-        SGA = 3
-    }
+   
 
     /// <summary>
     /// Summary description for clsScriptingTelnet.
@@ -65,7 +54,7 @@ namespace TelnetLib
                 {
                     case -1:
                         break;
-                    case (int)Verbs.IAC:
+                    case (int) TelnetEnums.Verbs.IAC:
                         // interpret as command
                         int inputverb = _mByBuff[k];
                         k++;
@@ -73,25 +62,25 @@ namespace TelnetLib
                             break;
                         switch (inputverb)
                         {
-                            case (int)Verbs.IAC:
+                            case (int) TelnetEnums.Verbs.IAC:
                                 //literal IAC = 255 escaped, so append char 255 to string
                                 sb.Append(inputverb);
                                 break;
-                            case (int)Verbs.DO:
-                            case (int)Verbs.DONT:
-                            case (int)Verbs.WILL:
-                            case (int)Verbs.WONT:
+                            case (int)TelnetEnums.Verbs.DO:
+                            case (int)TelnetEnums.Verbs.DONT:
+                            case (int)TelnetEnums.Verbs.WILL:
+                            case (int)TelnetEnums.Verbs.WONT:
                                 // reply to all commands with "WONT", unless it is SGA (suppres go ahead)
                                 int inputoption = _mByBuff[k];
                                 k++;
                                 if (inputoption == -1)
                                     break;
 
-                                _s.Send(new byte[] { ((byte)Verbs.IAC) }, 1, SocketFlags.None);
-                                if (inputoption == (int)Options.SGA)
-                                    _s.Send(new byte[] { (inputverb == (int)Verbs.DO ? (byte)Verbs.WILL : (byte)Verbs.DO) }, 1, SocketFlags.None);
+                                _s.Send(new byte[] { ((byte)TelnetEnums.Verbs.IAC) }, 1, SocketFlags.None);
+                                if (inputoption == (int)TelnetEnums.Options.SGA)
+                                    _s.Send(new byte[] { (inputverb == (int)TelnetEnums.Verbs.DO ? (byte)TelnetEnums.Verbs.WILL : (byte)TelnetEnums.Verbs.DO) }, 1, SocketFlags.None);
                                 else
-                                    _s.Send(new byte[] { (inputverb == (int)Verbs.DO ? (byte)Verbs.WONT : (byte)Verbs.DONT) }, 1, SocketFlags.None);
+                                    _s.Send(new byte[] { (inputverb == (int)TelnetEnums.Verbs.DO ? (byte)TelnetEnums.Verbs.WONT : (byte)TelnetEnums.Verbs.DONT) }, 1, SocketFlags.None);
 
                                 _s.Send(new byte[] { ((byte)inputoption) }, 1, SocketFlags.None);
                                 break;
@@ -136,8 +125,6 @@ namespace TelnetLib
                     //Console.Write(sRecieved.Trim());
                     Debug.Write(sRecieved);
 #endif
-
-
                     //Thread.Sleep(10)
                     // Launch another callback to listen for data
                     AsyncCallback recieveData = new AsyncCallback(OnRecievedData);
@@ -152,7 +139,7 @@ namespace TelnetLib
                 }
 
             }
-            catch (Exception ex)
+            catch
             {
                 //Console.Write(ex.Message);
             }
