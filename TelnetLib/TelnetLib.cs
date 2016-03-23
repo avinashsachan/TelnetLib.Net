@@ -12,7 +12,7 @@ using System.IO;
 
 namespace TelnetLib
 {
-   
+
 
     /// <summary>
     /// Summary description for clsScriptingTelnet.
@@ -54,7 +54,7 @@ namespace TelnetLib
                 {
                     case -1:
                         break;
-                    case (int) TelnetEnums.Verbs.IAC:
+                    case (int)Verbs.IAC:
                         // interpret as command
                         int inputverb = _mByBuff[k];
                         k++;
@@ -62,25 +62,25 @@ namespace TelnetLib
                             break;
                         switch (inputverb)
                         {
-                            case (int) TelnetEnums.Verbs.IAC:
+                            case (int)Verbs.IAC:
                                 //literal IAC = 255 escaped, so append char 255 to string
                                 sb.Append(inputverb);
                                 break;
-                            case (int)TelnetEnums.Verbs.DO:
-                            case (int)TelnetEnums.Verbs.DONT:
-                            case (int)TelnetEnums.Verbs.WILL:
-                            case (int)TelnetEnums.Verbs.WONT:
+                            case (int)Verbs.DO:
+                            case (int)Verbs.DONT:
+                            case (int)Verbs.WILL:
+                            case (int)Verbs.WONT:
                                 // reply to all commands with "WONT", unless it is SGA (suppres go ahead)
                                 int inputoption = _mByBuff[k];
                                 k++;
                                 if (inputoption == -1)
                                     break;
 
-                                _s.Send(new byte[] { ((byte)TelnetEnums.Verbs.IAC) }, 1, SocketFlags.None);
-                                if (inputoption == (int)TelnetEnums.Options.SGA)
-                                    _s.Send(new byte[] { (inputverb == (int)TelnetEnums.Verbs.DO ? (byte)TelnetEnums.Verbs.WILL : (byte)TelnetEnums.Verbs.DO) }, 1, SocketFlags.None);
+                                _s.Send(new byte[] { ((byte)Verbs.IAC) }, 1, SocketFlags.None);
+                                if (inputoption == (int)Options.SGA)
+                                    _s.Send(new byte[] { (inputverb == (int)Verbs.DO ? (byte)Verbs.WILL : (byte)Verbs.DO) }, 1, SocketFlags.None);
                                 else
-                                    _s.Send(new byte[] { (inputverb == (int)TelnetEnums.Verbs.DO ? (byte)TelnetEnums.Verbs.WONT : (byte)TelnetEnums.Verbs.DONT) }, 1, SocketFlags.None);
+                                    _s.Send(new byte[] { (inputverb == (int)Verbs.DO ? (byte)Verbs.WONT : (byte)Verbs.DONT) }, 1, SocketFlags.None);
 
                                 _s.Send(new byte[] { ((byte)inputoption) }, 1, SocketFlags.None);
                                 break;
@@ -248,20 +248,20 @@ namespace TelnetLib
             //  Dim End_index As UInt64 = 0
             string ln = "";
             // Dim L As Integer = 0
-            while (ln.IndexOf(dataToWaitFor.ToLower(), StringComparison.Ordinal) == -1)
+            while (ln.IndexOf(dataToWaitFor, StringComparison.OrdinalIgnoreCase) == -1)
             {
                 // Timeout logic
                 lngCurTime = System.DateTime.Now.Ticks;
                 if (lngCurTime > lngStart)
                 {
-                    throw new Exception("Timed Out waiting for : " + dataToWaitFor);
+                    throw new Exception("Timeout waiting for : " + dataToWaitFor);
                 }
                 Thread.Sleep(5);
 
-                if ((ln.IndexOf("idle too long; timed out", StringComparison.Ordinal) != -1))
+                if ((ln.IndexOf("Idle too long; timed out", StringComparison.OrdinalIgnoreCase) != -1))
                 {
                     //intReturn = -2
-                    if (ln.IndexOf(dataToWaitFor.ToLower(), StringComparison.Ordinal) != -1)
+                    if (ln.IndexOf(dataToWaitFor, StringComparison.OrdinalIgnoreCase) != -1)
                         return 0;
                     lock (_messagesLockWorkingData)
                     {
@@ -310,23 +310,23 @@ namespace TelnetLib
                 lngCurTime = System.DateTime.Now.Ticks;
                 if (lngCurTime > lngStart)
                 {
-                    throw new Exception("Timed Out waiting for : " + dataToWaitFor);
+                    throw new Exception("Timeout waiting for : " + dataToWaitFor);
                 }
                 Thread.Sleep(5);
                 for (int i = 0; i <= breaks.Length - 1; i++)
                 {
-                    if (ln.IndexOf(breaks[i].ToLower(), StringComparison.Ordinal) != -1)
+                    if (ln.IndexOf(breaks[i], StringComparison.OrdinalIgnoreCase) != -1)
                     {
                         intReturn = i;
                     }
                 }
-                if ((ln.IndexOf("idle too long; timed out", StringComparison.Ordinal) != -1))
+                if ((ln.IndexOf("Idle too long; timed out", StringComparison.OrdinalIgnoreCase) != -1))
                 {
                     for (int i = 0; i <= breaks.Length - 1; i++)
                     {
                         lock (_messagesLockWorkingData)
                         {
-                            if (_strWorkingData.ToString().ToLower().IndexOf(breaks[i].ToLower(), StringComparison.Ordinal) != -1)
+                            if (_strWorkingData.ToString().IndexOf(breaks[i].ToLower(), StringComparison.OrdinalIgnoreCase) != -1)
                             {
                                 return i;
                             }
