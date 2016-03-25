@@ -1,7 +1,9 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual C# Express 2010
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Express 2012 for Windows Desktop
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TelnetLib", "TelnetLib\TelnetLib.csproj", "{1268CA74-71CE-49B6-BCB4-7605EACC0CEC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestApp", "TestApp\TestApp.csproj", "{0E45E09A-150D-4EA5-AAE1-C6E91CADB07B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,6 +15,10 @@ Global
 		{1268CA74-71CE-49B6-BCB4-7605EACC0CEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1268CA74-71CE-49B6-BCB4-7605EACC0CEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1268CA74-71CE-49B6-BCB4-7605EACC0CEC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0E45E09A-150D-4EA5-AAE1-C6E91CADB07B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0E45E09A-150D-4EA5-AAE1-C6E91CADB07B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0E45E09A-150D-4EA5-AAE1-C6E91CADB07B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0E45E09A-150D-4EA5-AAE1-C6E91CADB07B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
