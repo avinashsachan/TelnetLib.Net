@@ -24,7 +24,7 @@ namespace TelnetLib
 
         private string _Address;
         private readonly int _port;
-        public int _Timeout;
+        private int _Timeout;
         private Socket _s;
 
         private byte[] _mByBuff = new byte[32767];
@@ -196,7 +196,6 @@ namespace TelnetLib
 
         public bool Connect()
         {
-
             try
             {
                 _iep = new IPEndPoint(IPAddress.Parse(_Address), _port);
@@ -208,19 +207,45 @@ namespace TelnetLib
                 _s.BeginReceive(_mByBuff, 0, _mByBuff.Length, SocketFlags.None, recieveData, _s);
                 return true;
             }
-            catch (Exception)
+            catch
             {
-                // Something failed
                 return false;
             }
-
         }
 
-        public bool IsConnected()
+        //this implementation is working for almost all linux rpm/debian based distributions
+        //platforms like solaris , HP-UX , Cisco/Juniper Routers  not tested
+        public bool Login(string Username, string Password)
         {
-            try
-            { return _s.Connected; }
-            catch (Exception) { return false; }
+            //here in telnet we actually dont know , where we are in terminal session
+            //it will be goos to initiate connection again
+            if (this.IsConnected)
+            {
+                this.Disconnect();
+                this._s.Dispose();
+            }
+
+            //here now initiate connection
+            try { 
+                if (!this.Connect()) { throw new Exception("Failed to connect."); } 
+
+                //here wait for login prompt
+                this.WaitFor("login:|Username:" ,"|");
+                this.SendAndWait(Username, "Password:");
+                this.SendAndWait(Password , "#|$", "|");
+                return true;
+            }
+            catch { throw; }
+        }
+
+        public bool IsConnected
+        {
+            get
+            {
+                try
+                { return _s.Connected; }
+                catch (Exception) { return false; }
+            }
         }
 
         public void Disconnect()
@@ -338,9 +363,9 @@ namespace TelnetLib
 
         public void SendMessage(string message, bool suppressCarriageReturn = false)
         {
-            DoSend(message + (suppressCarriageReturn ? "" : @"\r"));
+            DoSend(message + (suppressCarriageReturn ? "" : "\r"));
         }
-  
+
         public bool WaitAndSend(string waitFor, string message, bool suppressCarriegeReturn = false)
         {
             this.WaitFor(waitFor);
@@ -348,7 +373,7 @@ namespace TelnetLib
             return true;
         }
 
-     
+
         public int SendAndWait(string message, string waitFor, bool suppressCarriegeReturn = false)
         {
             lock (_messagesLockWorkingData)

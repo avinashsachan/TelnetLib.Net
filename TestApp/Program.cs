@@ -14,24 +14,26 @@ namespace TestApp
             //new connection 
             var con = new TelnetClient(FromConfig.Server, 23, 30);
 
-            if (con.Connect())
+
+            try
             {
-                Console.WriteLine("Conencted");
-                //System.Threading.Thread.Sleep(2000);
-                con.WaitFor("login:");
-                con.SendAndWait(FromConfig.Username + "\n", "Password:",true);
-                con.SendAndWait(FromConfig.Password + "\n", "$", true);
+                if (!con.Login(FromConfig.Username, FromConfig.Password))
+                {
+                    throw new Exception("Failed to connect.");
+                }
+
                 Console.WriteLine(con.SessionLog);
-                con.SendAndWait("ls -lrt" + "\n", "$", true);
+                con.SendAndWait("cd /", "$");
+                con.SendAndWait("ls -ltr ", "$");                
+                Console.WriteLine(con.SessionLog);
+                con.Disconnect();
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("No connection.");
+                Console.WriteLine(con.SessionLog);
+                Console.WriteLine(ex.Message);
             }
-
-
-
-
+           
         }
     }
 }
