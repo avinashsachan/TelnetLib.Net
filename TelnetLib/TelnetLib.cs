@@ -29,6 +29,7 @@ namespace TelnetLib
 
         private byte[] _mByBuff = new byte[32767];
         private StringBuilder _strFullLog = new StringBuilder();
+
         // Holds everything received from the server since our last processing
         private StringBuilder _strWorkingData = new StringBuilder();
 
@@ -42,7 +43,7 @@ namespace TelnetLib
             _Timeout = commandTimeout;
         }
 
-        private void ParseTelnet(ref StringBuilder sb, int nBytesRec)
+        private void ParseTelnetData(ref StringBuilder sb, int nBytesRec)
         {
             //_mByBuff, 0, nBytesRec
             long k = 0;
@@ -109,10 +110,8 @@ namespace TelnetLib
 
                 if (nBytesRec > 0)
                 {
-
-
                     var sb = new StringBuilder();
-                    ParseTelnet(ref sb, nBytesRec);
+                    ParseTelnetData(ref sb, nBytesRec);
                     string sRecieved = CleanDisplay(sb.ToString());
 
                     lock (_messagesLockWorkingData)
@@ -194,10 +193,7 @@ namespace TelnetLib
 
         }
 
-        /// <summary>
-        /// Connects to the telnet server.
-        /// </summary>
-        /// <returns>True upon connection, False if connection fails</returns>
+
         public bool Connect()
         {
 
@@ -233,11 +229,6 @@ namespace TelnetLib
             catch { }
         }
 
-        /// <summary>
-        /// Waits for a specific string to be found in the stream from the server
-        /// </summary>
-        /// <param name="dataToWaitFor">The string to wait for</param>
-        /// <returns>Always returns 0 once the string has been found</returns>
         public int WaitFor(string dataToWaitFor)
         {
 
@@ -286,12 +277,6 @@ namespace TelnetLib
             return 0;
         }
 
-        /// <summary>
-        /// Waits for one of several possible strings to be found in the stream from the server
-        /// </summary>
-        /// <param name="dataToWaitFor">A delimited list of strings to wait for</param>
-        /// <param name="breakCharacter">The character to break the delimited string with</param>
-        /// <returns>The index (zero based) of the value in the delimited list which was matched</returns>
         public int WaitFor(string dataToWaitFor, string breakCharacter)
         {
             // Get the starting time
@@ -350,24 +335,12 @@ namespace TelnetLib
 
         }
 
-        /// <summary>
-        /// Sends a message to the server
-        /// </summary>
-        /// <param name="message">The message to send to the server</param>
-        /// <param name="suppressCarriageReturn">True if you do not want to end the message with a carriage return</param>
+
         public void SendMessage(string message, bool suppressCarriageReturn = false)
         {
             DoSend(message + (suppressCarriageReturn ? "" : @"\r"));
         }
-
-
-        /// <summary>
-        /// Waits for a specific string to be found in the stream from the server.
-        /// Once that string is found, sends a message to the server
-        /// </summary>
-        /// <param name="waitFor">The string to be found in the server stream</param>
-        /// <param name="message">The message to send to the server</param>
-        /// <returns>Returns true once the string has been found, and the message has been sent</returns>
+  
         public bool WaitAndSend(string waitFor, string message, bool suppressCarriegeReturn = false)
         {
             this.WaitFor(waitFor);
@@ -375,13 +348,7 @@ namespace TelnetLib
             return true;
         }
 
-        /// <summary>
-        /// Sends a message to the server, and waits until the designated
-        /// response is received
-        /// </summary>
-        /// <param name="message">The message to send to the server</param>
-        /// <param name="waitFor">The response to wait for</param>
-        /// <returns>True if the process was successful</returns>
+     
         public int SendAndWait(string message, string waitFor, bool suppressCarriegeReturn = false)
         {
             lock (_messagesLockWorkingData)
