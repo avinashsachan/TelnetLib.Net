@@ -19,9 +19,4 @@ namespace TelnetLib
         //SuppressGoAhead
         SGA = 3
     }
-
-    class TelnetEnums
-    {
-
-    }
 }
