@@ -23,26 +23,26 @@ namespace TelnetLib
         //private IPEndPoint _iep;
         private byte[] _mByBuff = new byte[32767];
 
-        public virtual bool PacketReadInProcess { get; set; }
-        //private object _lockPacketRead = new object();
-        //private bool _packetReadInProcess
-        //{
-        //    get
-        //    {
-        //        lock (_lockPacketRead)
-        //        {
-        //            return this.packetReadInProcess;
-        //        }
-        //    }
+        private bool _packetReadInProcess { get; set; }
+        private object _lockPacketRead = new object();
+        private bool PacketReadInProcess
+        {
+            get
+            {
+                lock (_lockPacketRead)
+                {
+                    return this._packetReadInProcess;
+                }
+            }
 
-        //    set
-        //    {
-        //        lock (_lockPacketRead)
-        //        {
-        //            this.packetReadInProcess = value;
-        //        }
-        //    }
-        //}
+            set
+            {
+                lock (_lockPacketRead)
+                {
+                    this._packetReadInProcess = value;
+                }
+            }
+        }
 
 
         private SocketAPI Channel = new SocketAPI();
