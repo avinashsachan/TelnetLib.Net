@@ -12,40 +12,117 @@ using System.IO;
 
 namespace TelnetLib
 {
-
-
     /// <summary>
     /// Summary description for clsScriptingTelnet.
     /// </summary>
     public class TelnetClient
     {
-        private string _ServerName = "";
-        private IPEndPoint _iep;
-
-        private string _Address;
-        private readonly int _port;
-        private int _Timeout;
-        private Socket _s;
-
-        private byte[] _mByBuff = new byte[32767];
-        private StringBuilder _strFullLog = new StringBuilder();
+        #region "Property"
 
         // Holds everything received from the server since our last processing
-        private StringBuilder _strWorkingData = new StringBuilder();
-
         private readonly object _messagesLockWorkingData = new object();
+        private StringBuilder _strWorkingData = new StringBuilder();
+        private StringBuilder _strFullLog = new StringBuilder();
+
+
+        //private Socket _s;
+        //private IPEndPoint _iep;
+        private byte[] _mByBuff = new byte[32767];
+        private object _lockPacketRead = new object();
+        private bool packetReadInProcess = false;
+        private bool _packetReadInProcess
+        {
+            get
+            {
+                lock (_lockPacketRead)
+                {
+                    return this.packetReadInProcess;
+                }
+            }
+
+            set
+            {
+                lock (_lockPacketRead)
+                {
+                    this.packetReadInProcess = value;
+                }
+            }
+        }
+
+
+        private SocketAPI Channel = new SocketAPI();
+
+        private string _ServerName = "";
+        public string ServerName
+        {
+            get { return _ServerName; }
+            set { _ServerName = value; }
+        }
+
+        private string _Address;
+        public string Address
+        {
+            get { return _Address; }
+        }
+
+        private int _Port;
+        public int Port
+        {
+            get { return _Port; }
+        }
+
+
+        private int _Timeout;
+        public Int32 Timeout
+        {
+            get { return _Timeout; }
+            set { _Timeout = Math.Max(value, 0); }
+        }
+
+
+
+        private string _CurrentTerminalType = "XTERM";
+        public string CurrentTerminalType
+        {
+            get { return _CurrentTerminalType; }
+        }
+
+        private string _RequestedTerminalType = "XTERM";
+
+
+        #endregion
+
+        public void SetTerminalType(string terminalType)
+        {
+            this._RequestedTerminalType = terminalType;
+            RequestedTerminalType();
+        }
+
+        private void RequestedTerminalType()
+        {
+            //throw new NotImplementedException();
+            //if (!this.IsConnected) return;
+
+        }
 
         public TelnetClient(string address, int port, int commandTimeout, string serverName = "")
         {
+            Channel = new SocketAPI();
+            Channel.DataRecieved += new PacketRecieved(OnRecievedData);
             this._Address = address;
             this._ServerName = serverName;
-            _port = port;
-            _Timeout = commandTimeout;
+            this._Port = port;
+            this._Timeout = commandTimeout;
+
         }
 
         private void ParseTelnetData(ref StringBuilder sb, int nBytesRec)
         {
             //_mByBuff, 0, nBytesRec
+            var byteToSend = new List<byte>();
+            //int inputOption = 0;
+
+
             long k = 0;
             while (k < nBytesRec)
             {
@@ -54,41 +131,191 @@ namespace TelnetLib
                 switch (input)
                 {
                     case -1:
+                    case 0:
                         break;
-                    case (int)Verbs.IAC:
+                    case (int)TelnetCommand.IAC:
                         // interpret as command
-                        int inputverb = _mByBuff[k];
+                        int inputCommand = _mByBuff[k];
                         k++;
-                        if (inputverb == -1)
-                            break;
-                        switch (inputverb)
+
+                        switch (inputCommand)
                         {
-                            case (int)Verbs.IAC:
+                            case -1:
+                                break;
+                            case (int)TelnetCommand.IAC:
                                 //literal IAC = 255 escaped, so append char 255 to string
-                                sb.Append(inputverb);
+                                sb.Append(inputCommand);
                                 break;
-                            case (int)Verbs.DO:
-                            case (int)Verbs.DONT:
-                            case (int)Verbs.WILL:
-                            case (int)Verbs.WONT:
-                                // reply to all commands with "WONT", unless it is SGA (suppres go ahead)
-                                int inputoption = _mByBuff[k];
+                            case (int)TelnetCommand.DO:
+                                int inputOptionDO = _mByBuff[k];
                                 k++;
-                                if (inputoption == -1)
-                                    break;
+                                if (inputOptionDO == -1) break;
+                                switch ((TelnetOptions)inputOptionDO)
+                                {
+                                    case TelnetOptions.SGA:
+                                        byteToSend.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.WILL, (byte)inputOptionDO });
+                                        byteToSend.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.DO, (byte)inputOptionDO });
+                                        break;
+                                    case TelnetOptions.ECHO:
+                                        byteToSend.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.WONT, (byte)inputOptionDO });
+                                        break;
 
-                                _s.Send(new byte[] { ((byte)Verbs.IAC) }, 1, SocketFlags.None);
-                                if (inputoption == (int)Options.SGA)
-                                    _s.Send(new byte[] { (inputverb == (int)Verbs.DO ? (byte)Verbs.WILL : (byte)Verbs.DO) }, 1, SocketFlags.None);
-                                else
-                                    _s.Send(new byte[] { (inputverb == (int)Verbs.DO ? (byte)Verbs.WONT : (byte)Verbs.DONT) }, 1, SocketFlags.None);
+                                    case TelnetOptions.TM:
+                                    case TelnetOptions.TTYPE:
+                                        byteToSend.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.WILL, (byte)inputOptionDO });
+                                        break;
 
-                                _s.Send(new byte[] { ((byte)inputoption) }, 1, SocketFlags.None);
+                                    case TelnetOptions.STATUS:
+                                    case TelnetOptions.EXOPL:
+                                    default:
+                                        byteToSend.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.WONT, (byte)inputOptionDO });
+                                        break;
+                                }
+
+                                break;
+                            case (int)TelnetCommand.WILL:
+                                int inputOptionWill = Channel._mByBuff[k];
+                                k++;
+
+                                if (inputOptionWill == -1) break;
+
+                                switch ((TelnetOptions)inputOptionWill)
+                                {
+                                    case TelnetOptions.SGA:
+                                        byteToSend.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.DO, (byte)inputOptionWill });
+                                        byteToSend.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.WILL, (byte)inputOptionWill });
+
+                                        break;
+                                    case TelnetOptions.ECHO:
+                                        //here we need to check  echo setting 
+                                        //byteToSend.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.DO, (byte)inputOptionWill });
+                                        byteToSend.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.DONT, (byte)inputOptionWill });
+                                        break;
+
+                                    case TelnetOptions.EXOPL:
+                                        byteToSend.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.DONT, (byte)inputOptionWill });
+                                        break;
+                                    case TelnetOptions.STATUS:
+                                    case TelnetOptions.TM:
+                                    default:
+                                        break;
+                                }
+
                                 break;
 
+                            case (int)TelnetCommand.WONT:
+                                int inputOptionWont = _mByBuff[k];
+                                k++;
+                                if (inputOptionWont == -1) break;
+                                switch ((TelnetOptions)inputOptionWont)
+                                {
+
+                                    case TelnetOptions.SGA:
+                                    case TelnetOptions.BINARY:
+                                    case TelnetOptions.ECHO:
+                                        byteToSend.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.DONT, (byte)inputOptionWont });
+                                        break;
+                                    case TelnetOptions.STATUS:
+                                    case TelnetOptions.TM:
+                                    case TelnetOptions.EXOPL:
+                                    default:
+                                        break;
+                                }
+
+                                break;
+
+
+                            case (int)TelnetCommand.DONT:
+                                // reply to all commands with "WONT", unless it is SGA (suppres go ahead)
+                                int inputOptionDont = _mByBuff[k];
+                                k++;
+                                if (inputOptionDont == -1) break;
+
+                                switch ((TelnetOptions)inputOptionDont)
+                                {
+                                    case TelnetOptions.SGA:
+                                    case TelnetOptions.BINARY:
+                                    case TelnetOptions.ECHO:
+                                        byteToSend.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.WONT, (byte)inputOptionDont });
+                                        break;
+                                    case TelnetOptions.STATUS:
+                                    case TelnetOptions.TM:
+                                    case TelnetOptions.EXOPL:
+                                    default:
+                                        break;
+                                }
+
+                                break;
+
+                            case (int)TelnetCommand.SB:
+                                int inputOptionSB = _mByBuff[k];
+                                k++;
+                                if (inputOptionSB == -1) break;
+
+                                switch ((TelnetOptions)inputOptionSB)
+                                {
+                                    case TelnetOptions.TTYPE:
+                                        int d = _mByBuff[k];
+                                        k++;
+                                        if (d == 1)
+                                        {
+
+                                            var ANS = new List<byte>();
+                                            ANS.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.SB, (byte)TelnetOptions.TTYPE });
+                                            ANS.Add((byte)00);
+                                            ANS.AddRange(Helper.ConvertToByteArray(CurrentTerminalType));
+                                            ANS.AddRange(new byte[] { (byte)TelnetCommand.IAC, (byte)TelnetCommand.SE });
+                                            byteToSend.AddRange(ANS.ToArray());
+
+                                        }
+                                        break;
+                                }
+
+                                //here ignoring othere Sub Options 
+                                while ((int)_mByBuff[k] != 255)
+                                {
+                                    k++;
+                                }
+
+                                break;
+                            case (int)TelnetCommand.SE:
                             default:
                                 break;
                         }
+                        break;
+                    case 07:
+                        break;
+                    case 27:
+                        //    \033    \x1b
+                        //here this is color code
+                        //                        k++;
+                        if (_mByBuff[k] >= 64 && _mByBuff[k] <= 95)
+                        {
+                            var e = new List<Int32>();
+                            e.AddRange(new Int32[] { 61, 109, 104, 59 });
+                            while (!e.Contains(_mByBuff[k]))
+                            {
+                                Console.WriteLine("{0}\t{1}\t{2}", _mByBuff[k], _mByBuff[k].ToString("X"), (char)_mByBuff[k]);
+                                k++;
+                            }
+
+                            //here check tailing 
+                            if (_mByBuff[k] == 59)
+                            {
+                                if (_mByBuff[k + 3] == 109)
+                                {
+                                    k += 3;
+                                }
+                                else {
+                                    //Console.WriteLine("");
+                                }
+                            }
+                            k++;
+                        }
+                        else {
+                            sb.Append((char)input);
+                        }
+
                         break;
                     default:
                         sb.Append((char)input);
@@ -96,72 +323,70 @@ namespace TelnetLib
                 }
             }
 
+            //here if list contain some ans then send 
+            if (byteToSend.Count > 0)
+            {
+                Channel.Write(byteToSend.ToArray());
+            }
+
         }
 
-        private void OnRecievedData(IAsyncResult ar)
+        private void OnRecievedData(object sender, EventArgs e)
         {
+            //any previous event is already in process 
+            if (_packetReadInProcess) return;
 
+            _packetReadInProcess = true;
             try
             {
-                // Get The connection socket from the callback
-                Socket sock = (Socket)ar.AsyncState;
-                // Get The data , if any
-                int nBytesRec = sock.EndReceive(ar);
-
-                if (nBytesRec > 0)
+                while (Channel.outputQueue.Count > 0)
                 {
-                    var sb = new StringBuilder();
-                    ParseTelnetData(ref sb, nBytesRec);
-                    string sRecieved = CleanDisplay(sb.ToString());
+                    _mByBuff = Channel.outputQueue.Dequeue();
+                    int nBytesRec = _mByBuff.Length;
 
-                    lock (_messagesLockWorkingData)
+                    if (nBytesRec > 0)
                     {
-                        _strWorkingData.Append(sRecieved.ToLower());
-                        _strFullLog.Append(sRecieved);
-                    }
+                        var sb = new StringBuilder();
+                        ParseTelnetData(ref sb, nBytesRec);
+                        string sRecieved = sb.ToString();
+
+                        lock (_messagesLockWorkingData)
+                        {
+                            _strWorkingData.Append(sRecieved.ToLower());
+                            _strFullLog.Append(sRecieved);
+                        }
 
 #if DEBUG
-                    //Console.Write(sRecieved.Trim());
-                    Debug.Write(sRecieved);
+                        //Console.Write(sRecieved.Trim());
+                        Debug.WriteLine(sRecieved);
 #endif
-                    //Thread.Sleep(10)
-                    // Launch another callback to listen for data
-                    AsyncCallback recieveData = new AsyncCallback(OnRecievedData);
-                    sock.BeginReceive(_mByBuff, 0, _mByBuff.Length, SocketFlags.None, recieveData, sock);
-
+                        Thread.Sleep(10);
+                    }
                 }
-                else
-                {
-                    // If no data was recieved then the connection is probably dead
-                    sock.Shutdown(SocketShutdown.Both);
-                    sock.Close();
-                }
-
             }
-            catch
+            catch (Exception ex)
             {
-                //Console.Write(ex.Message);
+                Debug.WriteLine(ex.Message);
             }
-
+            finally
+            {
+                _packetReadInProcess = false;
+            }
         }
 
         private void DoSend(string strText)
         {
             try
             {
-                byte[] smk = new byte[strText.Length];
-                for (int i = 0; i <= strText.Length - 1; i++)
-                {
-                    byte ss = Convert.ToByte(strText.ToCharArray()[i]);
-                    smk[i] = ss;
-                }
+                byte[] smk = Helper.ConvertToByteArray(strText);
 
                 //here we are setting working data to ""
                 lock (_messagesLockWorkingData)
                 {
                     _strWorkingData.Clear();
                 }
-                _s.Send(smk, 0, smk.Length, SocketFlags.None);
+                //_s.Send(smk, 0, smk.Length, SocketFlags.None);
+                Channel.Write(smk);
             }
             catch (Exception)
             {
@@ -169,49 +394,20 @@ namespace TelnetLib
             }
         }
 
-        private string CleanDisplay(string input)
-        {
-            input = input.Replace(((char)0).ToString(), "");
-            return input;
-
-
-            //input = input.Replace(@"(0x (B", @"|");
-            //input = input.Replace(@"(0 x(B", @"|");
-            //input = input.Replace(@")0=>", @"");
-            //input = input.Replace(@"[0m>", @"");
-            //input = input.Replace(@"7[7m", @"[");
-            //input = input.Replace(@"[0m*8[7m", @"]");
-            //input = input.Replace(@"[0m", @"");
-
-            //        input = input.Replace("\u001b(0x \u001b(B", "|");
-            //        input = input.Replace("\u001b(0 x\u001b(B", "|");
-            //        input = input.Replace("\u001b)0\u001b=\u001b>", "");
-            //        input = input.Replace("\u001b[0m\u001b>", "");
-            //        input = input.Replace("\u001b7\u001b[7m", "[");
-            //        input = input.Replace("\u001b[0m*\u001b8\u001b[7m", "]");
-            //        input = input.Replace("\u001b[0m", "");
-
-        }
-
-
         public bool Connect()
         {
             try
             {
-                _iep = new IPEndPoint(IPAddress.Parse(_Address), _port);
-                _s = new Socket((_iep.AddressFamily == AddressFamily.InterNetworkV6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork), SocketType.Stream, ProtocolType.Tcp);
-                _s.Connect(_iep);
-
-                // If the connect worked, setup a callback to start listening for incoming data
-                AsyncCallback recieveData = new AsyncCallback(OnRecievedData);
-                _s.BeginReceive(_mByBuff, 0, _mByBuff.Length, SocketFlags.None, recieveData, _s);
+                var success = Channel.Connect(this._Address, this._Port);
+                if (!success) throw new Exception("Failed to connect");
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
                 return false;
             }
         }
+
 
         //this implementation is working for almost all linux rpm/debian based distributions
         //platforms like solaris , HP-UX , Cisco/Juniper Routers  not tested
@@ -222,83 +418,63 @@ namespace TelnetLib
             if (this.IsConnected)
             {
                 this.Disconnect();
-                this._s.Dispose();
             }
 
             //here now initiate connection
-            try { 
-                if (!this.Connect()) { throw new Exception("Failed to connect."); } 
+            try
+            {
+                if (!this.Connect()) { throw new Exception("Failed to connect."); }
 
                 //here wait for login prompt
-                this.WaitFor("login:|Username:" ,"|");
-                this.SendAndWait(Username, "Password:");
-                this.SendAndWait(Password , "#|$", "|");
+                this.WaitFor("login:|Username:|login :|Username :", "|");
+                this.SendAndWait(Username, "Password:|Password :", "|");
+                this.SendAndWait(Password, "#|$|>", "|");
                 return true;
             }
-            catch { throw; }
-        }
-
-        public bool IsConnected
-        {
-            get
+            catch (Exception ex)
             {
-                try
-                { return _s.Connected; }
-                catch (Exception) { return false; }
+
+                Console.WriteLine(ex.Message);
+                throw;
+
             }
         }
 
-        public void Disconnect()
-        {
-            try { if (_s.Connected) { _s.Disconnect(false); } }
-            catch { }
-        }
-
+        //created 2 function to avoid extra overhead
         public int WaitFor(string dataToWaitFor)
         {
 
             // Get the starting time
             long lngStart = System.DateTime.Now.AddSeconds(_Timeout).Ticks;
-            long lngCurTime = 0;
-            //  Dim start_index As UInt64 = 0
-            //  Dim End_index As UInt64 = 0
+
             string ln = "";
-            // Dim L As Integer = 0
+
             while (ln.IndexOf(dataToWaitFor, StringComparison.OrdinalIgnoreCase) == -1)
             {
-                // Timeout logic
-                lngCurTime = System.DateTime.Now.Ticks;
-                if (lngCurTime > lngStart)
+                try
                 {
-                    throw new Exception("Timeout waiting for : " + dataToWaitFor);
-                }
-                Thread.Sleep(5);
+                    if (ln.IndexOf(dataToWaitFor, StringComparison.OrdinalIgnoreCase) != -1) return 0;
 
-                if ((ln.IndexOf("Idle too long; timed out", StringComparison.OrdinalIgnoreCase) != -1))
-                {
-                    //intReturn = -2
-                    if (ln.IndexOf(dataToWaitFor, StringComparison.OrdinalIgnoreCase) != -1)
-                        return 0;
+                    if (System.DateTime.Now.Ticks > lngStart) throw new Exception("Timeout waiting for : " + dataToWaitFor);
+
+                    if ((ln.IndexOf("Idle too long; timed out", StringComparison.OrdinalIgnoreCase) != -1))
+                        throw new Exception("Connection Terminated forcefully");
+
                     lock (_messagesLockWorkingData)
                     {
-                        _strWorkingData.Clear();
+                        ln = _strWorkingData.ToString(0, _strWorkingData.Length);
+                        if (ln.Length > 50)
+                            _strWorkingData.Remove(0, ln.Length - 50);
                     }
-                    throw new Exception("Connection Terminated forcefully");
                 }
-
-                //  L = strWorkingData.Length
-                lock (_messagesLockWorkingData)
+                catch (Exception)
                 {
-                    ln = _strWorkingData.ToString(0, _strWorkingData.Length);
-                    _strWorkingData.Remove(0, ln.Length < 50 ? 0 : ln.Length - 50);
-                    //CLIPPING OF LN FROM WORKING DATA
+                    lock (_messagesLockWorkingData) { _strWorkingData.Clear(); }
+                    throw;
                 }
             }
-            lock (_messagesLockWorkingData)
-            {
-                _strWorkingData.Length = 0;
-            }
 
+            lock (_messagesLockWorkingData) { _strWorkingData.Clear(); }
             return 0;
         }
 
@@ -306,9 +482,6 @@ namespace TelnetLib
         {
             // Get the starting time
             long lngStart = System.DateTime.Now.AddSeconds(_Timeout).Ticks;
-            long lngCurTime = 0;
-            //  Dim start_index As UInt64 = 0
-            //  Dim End_index As UInt64 = 0
             string ln = "";
 
             string[] breaks = dataToWaitFor.Split(breakCharacter.ToCharArray());
@@ -316,13 +489,8 @@ namespace TelnetLib
 
             while (intReturn == -1)
             {
-                // Timeout logic
-                lngCurTime = System.DateTime.Now.Ticks;
-                if (lngCurTime > lngStart)
-                {
-                    throw new Exception("Timeout waiting for : " + dataToWaitFor);
-                }
-                Thread.Sleep(5);
+                if (System.DateTime.Now.Ticks > lngStart) { throw new Exception("Timeout waiting for : " + dataToWaitFor); }
+
                 for (int i = 0; i <= breaks.Length - 1; i++)
                 {
                     if (ln.IndexOf(breaks[i], StringComparison.OrdinalIgnoreCase) != -1)
@@ -330,6 +498,7 @@ namespace TelnetLib
                         intReturn = i;
                     }
                 }
+
                 if ((ln.IndexOf("Idle too long; timed out", StringComparison.OrdinalIgnoreCase) != -1))
                 {
                     for (int i = 0; i <= breaks.Length - 1; i++)
@@ -360,7 +529,6 @@ namespace TelnetLib
 
         }
 
-
         public void SendMessage(string message, bool suppressCarriageReturn = false)
         {
             DoSend(message + (suppressCarriageReturn ? "" : "\r"));
@@ -373,7 +541,7 @@ namespace TelnetLib
             return true;
         }
 
-
+        //created 2 function to avoid extra overhead
         public int SendAndWait(string message, string waitFor, bool suppressCarriegeReturn = false)
         {
             lock (_messagesLockWorkingData)
@@ -397,6 +565,21 @@ namespace TelnetLib
             return t;
         }
 
+        public bool IsConnected
+        {
+            get
+            {
+                try
+                { return this.Channel.IsConnected; }
+                catch (Exception) { return false; }
+            }
+        }
+
+        public void Disconnect()
+        {
+            try { if (this.IsConnected) { this.Channel.Disconnect(); } }
+            catch { }
+        }
 
         /// <summary>
         /// Clears all data in the session log
@@ -407,25 +590,6 @@ namespace TelnetLib
             {
                 _strFullLog.Clear();
             }
-        }
-
-
-
-        #region "Property"
-
-        public string ServerName
-        {
-            get { return _ServerName; }
-            set { _ServerName = value; }
-        }
-        public string Address
-        {
-            get { return _Address; }
-        }
-        public Int32 Timeout
-        {
-            get { return _Timeout; }
-            set { _Timeout = Math.Max(value, 0); }
         }
 
         /// <summary>
@@ -441,8 +605,6 @@ namespace TelnetLib
                 }
             }
         }
-
-        #endregion
 
     }
 }
