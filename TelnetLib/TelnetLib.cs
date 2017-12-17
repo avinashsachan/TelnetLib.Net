@@ -1,19 +1,13 @@
-﻿using Microsoft.VisualBasic;
-using System;
-using System.Collections;
+﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using System.IO;
 
 namespace TelnetLib
 {
     /// <summary>
-    /// Summary description for clsScriptingTelnet.
+    /// Summary description for TelnetLib Class.
     /// </summary>
     public class TelnetClient
     {
@@ -28,26 +22,27 @@ namespace TelnetLib
         //private Socket _s;
         //private IPEndPoint _iep;
         private byte[] _mByBuff = new byte[32767];
-        private object _lockPacketRead = new object();
-        private bool packetReadInProcess = false;
-        private bool _packetReadInProcess
-        {
-            get
-            {
-                lock (_lockPacketRead)
-                {
-                    return this.packetReadInProcess;
-                }
-            }
 
-            set
-            {
-                lock (_lockPacketRead)
-                {
-                    this.packetReadInProcess = value;
-                }
-            }
-        }
+        public virtual bool PacketReadInProcess { get; set; }
+        //private object _lockPacketRead = new object();
+        //private bool _packetReadInProcess
+        //{
+        //    get
+        //    {
+        //        lock (_lockPacketRead)
+        //        {
+        //            return this.packetReadInProcess;
+        //        }
+        //    }
+
+        //    set
+        //    {
+        //        lock (_lockPacketRead)
+        //        {
+        //            this.packetReadInProcess = value;
+        //        }
+        //    }
+        //}
 
 
         private SocketAPI Channel = new SocketAPI();
@@ -71,15 +66,12 @@ namespace TelnetLib
             get { return _Port; }
         }
 
-
         private int _Timeout;
         public Int32 Timeout
         {
             get { return _Timeout; }
             set { _Timeout = Math.Max(value, 0); }
         }
-
-
 
         private string _CurrentTerminalType = "XTERM";
         public string CurrentTerminalType
@@ -91,6 +83,18 @@ namespace TelnetLib
 
 
         #endregion
+
+        public TelnetClient(string address, int port, int commandTimeout, string serverName = "")
+        {
+            this.PacketReadInProcess = false;
+            Channel = new SocketAPI();
+            Channel.DataRecieved += new PacketRecieved(OnRecievedData);
+            this._Address = address;
+            this._ServerName = serverName;
+            this._Port = port;
+            this._Timeout = commandTimeout;
+
+        }
 
         public void SetTerminalType(string terminalType)
         {
@@ -105,17 +109,6 @@ namespace TelnetLib
 
         }
 
-        public TelnetClient(string address, int port, int commandTimeout, string serverName = "")
-        {
-            Channel = new SocketAPI();
-            Channel.DataRecieved += new PacketRecieved(OnRecievedData);
-            this._Address = address;
-            this._ServerName = serverName;
-            this._Port = port;
-            this._Timeout = commandTimeout;
-
-        }
-
         private void ParseTelnetData(ref StringBuilder sb, int nBytesRec)
         {
             //_mByBuff, 0, nBytesRec
@@ -126,8 +119,8 @@ namespace TelnetLib
             long k = 0;
             while (k < nBytesRec)
             {
-                int input = _mByBuff[k];
-                k++;
+                int input = _mByBuff[k++];
+                //k++;
                 switch (input)
                 {
                     case -1:
@@ -147,8 +140,8 @@ namespace TelnetLib
                                 sb.Append(inputCommand);
                                 break;
                             case (int)TelnetCommand.DO:
-                                int inputOptionDO = _mByBuff[k];
-                                k++;
+                                int inputOptionDO = _mByBuff[k++];
+                               
                                 if (inputOptionDO == -1) break;
                                 switch ((TelnetOptions)inputOptionDO)
                                 {
@@ -174,9 +167,8 @@ namespace TelnetLib
 
                                 break;
                             case (int)TelnetCommand.WILL:
-                                int inputOptionWill = Channel._mByBuff[k];
-                                k++;
-
+                                int inputOptionWill = Channel._mByBuff[k++];
+                               
                                 if (inputOptionWill == -1) break;
 
                                 switch ((TelnetOptions)inputOptionWill)
@@ -204,8 +196,8 @@ namespace TelnetLib
                                 break;
 
                             case (int)TelnetCommand.WONT:
-                                int inputOptionWont = _mByBuff[k];
-                                k++;
+                                int inputOptionWont = _mByBuff[k++];
+                                
                                 if (inputOptionWont == -1) break;
                                 switch ((TelnetOptions)inputOptionWont)
                                 {
@@ -227,8 +219,8 @@ namespace TelnetLib
 
                             case (int)TelnetCommand.DONT:
                                 // reply to all commands with "WONT", unless it is SGA (suppres go ahead)
-                                int inputOptionDont = _mByBuff[k];
-                                k++;
+                                int inputOptionDont = _mByBuff[k++];
+                                
                                 if (inputOptionDont == -1) break;
 
                                 switch ((TelnetOptions)inputOptionDont)
@@ -248,8 +240,8 @@ namespace TelnetLib
                                 break;
 
                             case (int)TelnetCommand.SB:
-                                int inputOptionSB = _mByBuff[k];
-                                k++;
+                                int inputOptionSB = _mByBuff[k++];
+                                
                                 if (inputOptionSB == -1) break;
 
                                 switch ((TelnetOptions)inputOptionSB)
@@ -295,7 +287,7 @@ namespace TelnetLib
                             e.AddRange(new Int32[] { 61, 109, 104, 59 });
                             while (!e.Contains(_mByBuff[k]))
                             {
-                                Console.WriteLine("{0}\t{1}\t{2}", _mByBuff[k], _mByBuff[k].ToString("X"), (char)_mByBuff[k]);
+                                //Console.WriteLine("{0}\t{1}\t{2}", _mByBuff[k], _mByBuff[k].ToString("X"), (char)_mByBuff[k]);
                                 k++;
                             }
 
@@ -306,13 +298,15 @@ namespace TelnetLib
                                 {
                                     k += 3;
                                 }
-                                else {
+                                else
+                                {
                                     //Console.WriteLine("");
                                 }
                             }
                             k++;
                         }
-                        else {
+                        else
+                        {
                             sb.Append((char)input);
                         }
 
@@ -334,34 +328,31 @@ namespace TelnetLib
         private void OnRecievedData(object sender, EventArgs e)
         {
             //any previous event is already in process 
-            if (_packetReadInProcess) return;
+            if (PacketReadInProcess) return;
+            PacketReadInProcess = true;
 
-            _packetReadInProcess = true;
             try
             {
-                while (Channel.outputQueue.Count > 0)
+                while (Channel.OutputQueue.Count > 0)
                 {
-                    _mByBuff = Channel.outputQueue.Dequeue();
+                    _mByBuff = Channel.OutputQueue.Dequeue();
                     int nBytesRec = _mByBuff.Length;
 
-                    if (nBytesRec > 0)
-                    {
-                        var sb = new StringBuilder();
-                        ParseTelnetData(ref sb, nBytesRec);
-                        string sRecieved = sb.ToString();
+                    var sb = new StringBuilder();
+                    ParseTelnetData(ref sb, nBytesRec);
 
-                        lock (_messagesLockWorkingData)
-                        {
-                            _strWorkingData.Append(sRecieved.ToLower());
-                            _strFullLog.Append(sRecieved);
-                        }
+                    lock (_messagesLockWorkingData)
+                    {
+                        _strWorkingData.Append(sb.ToString().ToLower());
+                        _strFullLog.Append(sb.ToString());
+                    }
 
 #if DEBUG
-                        //Console.Write(sRecieved.Trim());
-                        Debug.WriteLine(sRecieved);
+                    //Console.Write(sRecieved.Trim());
+                    Debug.WriteLine(sb.ToString());
 #endif
-                        Thread.Sleep(10);
-                    }
+                    Thread.Sleep(10);
+
                 }
             }
             catch (Exception ex)
@@ -370,7 +361,7 @@ namespace TelnetLib
             }
             finally
             {
-                _packetReadInProcess = false;
+                PacketReadInProcess = false;
             }
         }
 
@@ -394,6 +385,89 @@ namespace TelnetLib
             }
         }
 
+
+        public int WaitFor(string dataToWaitFor)
+        {
+            return WaitFor(new string[] { dataToWaitFor });
+        }
+        public int WaitFor(string dataToWaitFor, string breakCharacter)
+        {
+            string[] breaks = dataToWaitFor.Split(breakCharacter.ToCharArray());
+            return WaitFor(breaks);
+        }
+        public int WaitFor(string[] breaks)
+        {
+            // Get the starting time
+            long lngStart = DateTime.Now.AddSeconds(this._Timeout).Ticks;
+            string ln = "";
+            int intReturn = -1;
+
+            try
+            {
+                while (intReturn == -1)
+                {
+                    if (DateTime.Now.Ticks > lngStart) { throw new Exception("Timeout waiting for : " + string.Join("|", breaks)); }
+
+                    for (int i = 0; i <= breaks.Length - 1; i++)
+                    {
+                        if (ln.IndexOf(breaks[i], StringComparison.OrdinalIgnoreCase) != -1)
+                        {
+                            return i;
+                        }
+                    }
+
+                    if ((ln.IndexOf("Idle too long; timed out", StringComparison.OrdinalIgnoreCase) != -1))
+                        throw new Exception("Connection Terminated forcefully");
+
+                    lock (_messagesLockWorkingData)
+                    {
+                        ln = _strWorkingData.ToString(0, _strWorkingData.Length);
+                        _strWorkingData.Remove(0, ln.Length < 50 ? 0 : ln.Length - 50);
+                    }
+                }
+            }
+            catch
+            {
+                throw;
+            }
+            finally
+            {
+                lock (_messagesLockWorkingData) { _strWorkingData.Length = 0; }
+            }
+
+            return intReturn;
+        }
+
+        public void SendMessage(string message, bool suppressCarriageReturn = false)
+        {
+            DoSend(message + (suppressCarriageReturn ? "" : "\r"));
+        }
+
+      
+        public int SendAndWait(string message, string waitFor, bool suppressCarriegeReturn = false)
+        {
+            return SendAndWait(message, waitFor, null, suppressCarriegeReturn);
+        }
+        public int SendAndWait(string message, string waitFor, string breakCharacter, bool suppressCarriegeReturn = false)
+        {
+            lock (_messagesLockWorkingData)
+            {
+                _strWorkingData.Length = 0;
+            }
+            SendMessage(message, suppressCarriegeReturn);
+
+            if (breakCharacter == null)
+            {
+                this.WaitFor(waitFor);
+                return 0;
+            }
+            else
+            {
+                return this.WaitFor(waitFor, breakCharacter);
+            }
+        }
+
+
         public bool Connect()
         {
             try
@@ -402,11 +476,53 @@ namespace TelnetLib
                 if (!success) throw new Exception("Failed to connect");
                 return true;
             }
-            catch (Exception ex)
+            catch
             {
                 return false;
             }
         }
+        public bool IsConnected
+        {
+            get
+            {
+                try
+                { return this.Channel.IsConnected; }
+                catch (Exception) { return false; }
+            }
+        }
+        public void Disconnect()
+        {
+            try { if (this.IsConnected) { this.Channel.Disconnect(); } }
+            catch { }
+        }
+
+
+
+        /// <summary>
+        /// Clears all data in the session log
+        /// </summary>
+        public void ClearSessionLog()
+        {
+            lock (_messagesLockWorkingData)
+            {
+                _strFullLog.Clear();
+            }
+        }
+
+        /// <summary>
+        /// A full log of session activity
+        /// </summary>
+        public string SessionLog
+        {
+            get
+            {
+                lock (_messagesLockWorkingData)
+                {
+                    return _strFullLog.ToString();
+                }
+            }
+        }
+
 
 
         //this implementation is working for almost all linux rpm/debian based distributions
@@ -431,178 +547,9 @@ namespace TelnetLib
                 this.SendAndWait(Password, "#|$|>", "|");
                 return true;
             }
-            catch (Exception ex)
+            catch
             {
-
-                Console.WriteLine(ex.Message);
                 throw;
-
-            }
-        }
-
-        //created 2 function to avoid extra overhead
-        public int WaitFor(string dataToWaitFor)
-        {
-
-            // Get the starting time
-            long lngStart = System.DateTime.Now.AddSeconds(_Timeout).Ticks;
-
-            string ln = "";
-
-            while (ln.IndexOf(dataToWaitFor, StringComparison.OrdinalIgnoreCase) == -1)
-            {
-                try
-                {
-                    if (ln.IndexOf(dataToWaitFor, StringComparison.OrdinalIgnoreCase) != -1) return 0;
-
-                    if (System.DateTime.Now.Ticks > lngStart) throw new Exception("Timeout waiting for : " + dataToWaitFor);
-
-                    if ((ln.IndexOf("Idle too long; timed out", StringComparison.OrdinalIgnoreCase) != -1))
-                        throw new Exception("Connection Terminated forcefully");
-
-                    lock (_messagesLockWorkingData)
-                    {
-                        ln = _strWorkingData.ToString(0, _strWorkingData.Length);
-                        if (ln.Length > 50)
-                            _strWorkingData.Remove(0, ln.Length - 50);
-                    }
-                }
-                catch (Exception)
-                {
-                    lock (_messagesLockWorkingData) { _strWorkingData.Clear(); }
-                    throw;
-                }
-            }
-
-            lock (_messagesLockWorkingData) { _strWorkingData.Clear(); }
-            return 0;
-        }
-
-        public int WaitFor(string dataToWaitFor, string breakCharacter)
-        {
-            // Get the starting time
-            long lngStart = System.DateTime.Now.AddSeconds(_Timeout).Ticks;
-            string ln = "";
-
-            string[] breaks = dataToWaitFor.Split(breakCharacter.ToCharArray());
-            int intReturn = -1;
-
-            while (intReturn == -1)
-            {
-                if (System.DateTime.Now.Ticks > lngStart) { throw new Exception("Timeout waiting for : " + dataToWaitFor); }
-
-                for (int i = 0; i <= breaks.Length - 1; i++)
-                {
-                    if (ln.IndexOf(breaks[i], StringComparison.OrdinalIgnoreCase) != -1)
-                    {
-                        intReturn = i;
-                    }
-                }
-
-                if ((ln.IndexOf("Idle too long; timed out", StringComparison.OrdinalIgnoreCase) != -1))
-                {
-                    for (int i = 0; i <= breaks.Length - 1; i++)
-                    {
-                        lock (_messagesLockWorkingData)
-                        {
-                            if (_strWorkingData.ToString().IndexOf(breaks[i].ToLower(), StringComparison.OrdinalIgnoreCase) != -1)
-                            {
-                                return i;
-                            }
-                        }
-                    }
-                    throw new Exception("Connection Terminated forcefully");
-                }
-                lock (_messagesLockWorkingData)
-                {
-                    ln = _strWorkingData.ToString(0, _strWorkingData.Length);
-                    _strWorkingData.Remove(0, ln.Length < 50 ? 0 : ln.Length - 50);
-                    //CLIPPING OF LN FROM WORKING DATA
-                }
-
-            }
-            lock (_messagesLockWorkingData)
-            {
-                _strWorkingData.Length = 0;
-            }
-            return intReturn;
-
-        }
-
-        public void SendMessage(string message, bool suppressCarriageReturn = false)
-        {
-            DoSend(message + (suppressCarriageReturn ? "" : "\r"));
-        }
-
-        public bool WaitAndSend(string waitFor, string message, bool suppressCarriegeReturn = false)
-        {
-            this.WaitFor(waitFor);
-            SendMessage(message, suppressCarriegeReturn);
-            return true;
-        }
-
-        //created 2 function to avoid extra overhead
-        public int SendAndWait(string message, string waitFor, bool suppressCarriegeReturn = false)
-        {
-            lock (_messagesLockWorkingData)
-            {
-                _strWorkingData.Length = 0;
-            }
-
-            SendMessage(message, suppressCarriegeReturn);
-            this.WaitFor(waitFor);
-            return 0;
-        }
-
-        public int SendAndWait(string message, string waitFor, string breakCharacter, bool suppressCarriegeReturn = false)
-        {
-            lock (_messagesLockWorkingData)
-            {
-                _strWorkingData.Length = 0;
-            }
-            SendMessage(message, suppressCarriegeReturn);
-            int t = this.WaitFor(waitFor, breakCharacter);
-            return t;
-        }
-
-        public bool IsConnected
-        {
-            get
-            {
-                try
-                { return this.Channel.IsConnected; }
-                catch (Exception) { return false; }
-            }
-        }
-
-        public void Disconnect()
-        {
-            try { if (this.IsConnected) { this.Channel.Disconnect(); } }
-            catch { }
-        }
-
-        /// <summary>
-        /// Clears all data in the session log
-        /// </summary>
-        public void ClearSessionLog()
-        {
-            lock (_messagesLockWorkingData)
-            {
-                _strFullLog.Clear();
-            }
-        }
-
-        /// <summary>
-        /// A full log of session activity
-        /// </summary>
-        public string SessionLog
-        {
-            get
-            {
-                lock (_messagesLockWorkingData)
-                {
-                    return _strFullLog.ToString();
-                }
             }
         }
 
