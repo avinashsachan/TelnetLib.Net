@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TelnetLib;
 
 namespace TestApp
@@ -21,12 +17,13 @@ namespace TestApp
                 {
                     throw new Exception("Failed to connect.");
                 }
+                Console.WriteLine("In");
 
-                Console.WriteLine(con.SessionLog);
                 con.SendAndWait("cd /", "$");
-                con.SendAndWait("ls -ltr ", "$");                
+                con.SendAndWait("ls -ltr", "$");
                 Console.WriteLine(con.SessionLog);
                 con.Disconnect();
+                Console.ReadLine();
             }
             catch (Exception ex)
             {
