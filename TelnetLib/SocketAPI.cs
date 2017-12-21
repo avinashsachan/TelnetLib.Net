@@ -96,6 +96,10 @@ namespace TelnetLib
             }
         }
 
+
+        /// <summary>
+        /// 
+        /// </summary>
         public void Disconnect()
         {
             try { if (this.IsConnected) { _s.Disconnect(false); } }
